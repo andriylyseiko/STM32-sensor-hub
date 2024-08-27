@@ -468,7 +468,7 @@ void StartTask2(void *argument)
   for(;;)
   {
 	  printf("Task 2\n");
-    osDelay(3000);
+    osDelay(2000);
   }
   /* USER CODE END StartTask2 */
 }
