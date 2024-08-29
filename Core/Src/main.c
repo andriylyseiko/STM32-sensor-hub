@@ -51,13 +51,13 @@ osThreadId_t PWM_TaskHandle;
 const osThreadAttr_t PWM_Task_attributes = {
   .name = "PWM_Task",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal2,
+  .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for Task2 */
-osThreadId_t Task2Handle;
-const osThreadAttr_t Task2_attributes = {
-  .name = "Task2",
-  .stack_size = 128 * 4,
+/* Definitions for Light_Task */
+osThreadId_t Light_TaskHandle;
+const osThreadAttr_t Light_Task_attributes = {
+  .name = "Light_Task",
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -70,7 +70,7 @@ static void MX_GPIO_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_ADC1_Init(void);
 void PWM_For_LED_Task(void *argument);
-void StartTask2(void *argument);
+void GetLightIntensityTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -141,8 +141,8 @@ int main(void)
   /* creation of PWM_Task */
   PWM_TaskHandle = osThreadNew(PWM_For_LED_Task, NULL, &PWM_Task_attributes);
 
-  /* creation of Task2 */
-  Task2Handle = osThreadNew(StartTask2, NULL, &Task2_attributes);
+  /* creation of Light_Task */
+  Light_TaskHandle = osThreadNew(GetLightIntensityTask, NULL, &Light_Task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -490,6 +490,7 @@ void PWM_For_LED_Task(void *argument)
 		  printf("PWM task - increasing\n");
 
 		  while(compareValue < 65535) {
+			  printf("Val+: %ld\n", compareValue);
 			  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, compareValue);
 			  compareValue += 100;
 			  HAL_Delay(10);
@@ -499,34 +500,59 @@ void PWM_For_LED_Task(void *argument)
 		  printf("PWM task - decreasing\n");
 
 		  while(compareValue > 0) {
+			  printf("Val-: %ld\n", compareValue);
 			  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, compareValue);
 			  compareValue -= 100;
 			  HAL_Delay(10);
 		  }
 	  }
+	    printf("Test execution1\n");
 
-    osDelay(10000);
+    osDelay(5000);
   }
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartTask2 */
+/* USER CODE BEGIN Header_GetLightIntensityTask */
 /**
-* @brief Function implementing the Task2 thread.
+* @brief Function implementing the Light_Task thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask2 */
-void StartTask2(void *argument)
+/* USER CODE END Header_GetLightIntensityTask */
+void GetLightIntensityTask(void *argument)
 {
-  /* USER CODE BEGIN StartTask2 */
-  /* Infinite loop */
+  /* USER CODE BEGIN GetLightIntensityTask */
+	uint16_t refVoltage = 3;
+	uint16_t resolution = 4096;
+	uint32_t rawValue;
+	float voltage;
+	float lux = 0;
+
   for(;;)
   {
-	  printf("Task 2\n");
-    osDelay(2000);
+	  HAL_ADC_Start(&hadc1);
+	  HAL_ADC_PollForConversion(&hadc1, 20);
+	  rawValue = HAL_ADC_GetValue(&hadc1);
+
+	  printf("Raw value: %lu (0-4095)\n", rawValue);
+
+	  voltage = (float) (rawValue * refVoltage ) / resolution;
+	  printf("Voltage: %.3f V\n", voltage);
+
+    /*
+      Convert to Lux
+      10k Om - resistor. Then convert ampere to micro amperes
+      and multiply by 2, as 2 microamps = 1 lux
+     */
+	  lux = (voltage / 10000.0) * 1000000.0 * 2.0; //
+	  printf("Lux: %.1f\n", lux);
+
+
+	  HAL_ADC_Stop(&hadc1);
+	  osDelay(5000);
   }
-  /* USER CODE END StartTask2 */
+  /* USER CODE END GetLightIntensityTask */
 }
 
 /**
