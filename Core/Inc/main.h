@@ -55,6 +55,11 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void PWM_For_LED_Task(void *argument);
+void GetLightIntensityTask(void *argument);
+void menuTask(void *argument);
+void cmdHandlerTask(void *argument);
+void printTask(void *argument);
 
 /* USER CODE END EFP */
 
