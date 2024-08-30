@@ -155,7 +155,7 @@ int main(void)
 
 
 
-  HAL_UART_Receive_IT(&huart2, &user_data, 1);
+  HAL_UART_Receive_IT(&huart2, (uint8_t*)&user_data, 1);
 
   /* USER CODE END 2 */
 
@@ -451,8 +451,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		if(user_data == '\n') {
 
 			/* make sure that last data byte of the queue is '\n' */
-			osMessageQueueGet(dataQueueHandle, &to_remove, 0U, 0U);
-			osMessageQueuePut(dataQueueHandle, &user_data, 0U, 0U);
+			osMessageQueueGet(dataQueueHandle, (void*)&to_remove, 0U, 0U);
+			osMessageQueuePut(dataQueueHandle, (void*)&user_data, 0U, 0U);
 		}
 	}
 
@@ -462,7 +462,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 
 	/* Enable UART data byte reception again in IT mode */
-	HAL_UART_Receive_IT(&huart2, &user_data, 1);
+	HAL_UART_Receive_IT(&huart2, (uint8_t*)&user_data, 1);
 
 }
 
