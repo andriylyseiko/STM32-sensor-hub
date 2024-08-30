@@ -46,6 +46,8 @@ ADC_HandleTypeDef hadc1;
 
 TIM_HandleTypeDef htim4;
 
+UART_HandleTypeDef huart2;
+
 /* Definitions for PWM_Task */
 osThreadId_t PWM_TaskHandle;
 const osThreadAttr_t PWM_Task_attributes = {
@@ -148,7 +150,12 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM4_Init();
   MX_ADC1_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+
+
+  HAL_UART_Receive_IT(&huart2, &user_data, 1);
 
   /* USER CODE END 2 */
 
@@ -375,6 +382,39 @@ static void MX_TIM4_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -386,15 +426,45 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	uint8_t to_remove;
+
+	if(osMessageQueueGetSpace(dataQueueHandle) != 0) {
+		/*Queue is not full */
+
+		/* Enqueue data byte */
+		osMessageQueuePut(dataQueueHandle, (void*)&user_data, 0U, 0U);
+
+	} else {
+		/*Queue is full */
+
+		if(user_data == '\n') {
+
+			/* make sure that last data byte of the queue is '\n' */
+			osMessageQueueGet(dataQueueHandle, &to_remove, 0U, 0U);
+			osMessageQueuePut(dataQueueHandle, &user_data, 0U, 0U);
+		}
+	}
+
+	/* send notification to command handling task if user_data = '\n' */
+	if (user_data == '\n') {
+		osThreadFlagsSet(cmd_taskHandle, 0);
+	}
+
+	/* Enable UART data byte reception again in IT mode */
+	HAL_UART_Receive_IT(&huart2, &user_data, 1);
+
+}
 
 /* USER CODE END 4 */
 
