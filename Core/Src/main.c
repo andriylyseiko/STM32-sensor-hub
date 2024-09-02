@@ -48,18 +48,18 @@ TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart2;
 
-/* Definitions for PWM_Task */
-osThreadId_t PWM_TaskHandle;
-const osThreadAttr_t PWM_Task_attributes = {
-  .name = "PWM_Task",
-  .stack_size = 128 * 4,
+/* Definitions for LED_task */
+osThreadId_t LED_taskHandle;
+const osThreadAttr_t LED_task_attributes = {
+  .name = "LED_task",
+  .stack_size = 250 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for Light_Task */
-osThreadId_t Light_TaskHandle;
-const osThreadAttr_t Light_Task_attributes = {
-  .name = "Light_Task",
-  .stack_size = 256 * 4,
+/* Definitions for light_task */
+osThreadId_t light_taskHandle;
+const osThreadAttr_t light_task_attributes = {
+  .name = "light_task",
+  .stack_size = 250 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for menu_task */
@@ -104,8 +104,8 @@ static void MX_GPIO_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART2_UART_Init(void);
-void PWM_For_LED_Task(void *argument);
-extern void GetLightIntensityTask(void *argument);
+void LEDRegulateTask(void *argument);
+extern void lightMeasureTask(void *argument);
 extern void menuTask(void *argument);
 extern void cmdHandlerTask(void *argument);
 extern void printTask(void *argument);
@@ -153,8 +153,6 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-
-
   HAL_UART_Receive_IT(&huart2, (uint8_t*)&user_data, 1);
 
   /* USER CODE END 2 */
@@ -186,11 +184,11 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of PWM_Task */
-  PWM_TaskHandle = osThreadNew(PWM_For_LED_Task, NULL, &PWM_Task_attributes);
+  /* creation of LED_task */
+  LED_taskHandle = osThreadNew(LEDRegulateTask, NULL, &LED_task_attributes);
 
-  /* creation of Light_Task */
-  Light_TaskHandle = osThreadNew(GetLightIntensityTask, NULL, &Light_Task_attributes);
+  /* creation of light_task */
+  light_taskHandle = osThreadNew(lightMeasureTask, NULL, &light_task_attributes);
 
   /* creation of menu_task */
   menu_taskHandle = osThreadNew(menuTask, NULL, &menu_task_attributes);
@@ -438,6 +436,7 @@ static void MX_GPIO_Init(void)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	uint8_t to_remove;
+
 
 	if(osMessageQueueGetSpace(dataQueueHandle) != 0) {
 		/*Queue is not full */
