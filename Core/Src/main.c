@@ -289,7 +289,7 @@ static void MX_ADC1_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
@@ -395,7 +395,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 9600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -456,25 +456,34 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 
 	/* send notification to command handling task if user_data = '\n' */
+
 	if (user_data == '\n') {
-		osThreadFlagsSet(cmd_taskHandle, 0);
+		osThreadFlagsSet(cmd_taskHandle, 1);
 	}
 
 	/* Enable UART data byte reception again in IT mode */
-	HAL_UART_Receive_IT(&huart2, (uint8_t*)&user_data, 1);
+	HAL_UART_Receive_IT(&huart2, (void*)&user_data, 1);
 
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	if (hadc->Instance == ADC1) {
+		// notify lightMeasurementTask that ADC conversion was completed successfully
+		osThreadFlagsSet(light_taskHandle, 2);
+	}
 }
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_PWM_For_LED_Task */
+/* USER CODE BEGIN Header_LEDRegulateTask */
 /**
-  * @brief  Function implementing the PWM_Task thread.
+  * @brief  Function implementing the LED_task thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_PWM_For_LED_Task */
-__weak void PWM_For_LED_Task(void *argument)
+/* USER CODE END Header_LEDRegulateTask */
+__weak void LEDRegulateTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
