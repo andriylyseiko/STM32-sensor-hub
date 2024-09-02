@@ -5,87 +5,121 @@
  *      Author: alyseiko
  */
 
+/* Includes ------------------------------------------------------------------*/
+#include <stdio.h>
+#include <string.h>
 #include "main.h"
 #include "cmsis_os.h"
-#include <stdio.h>
+#include "sensors.h"
 
+/* Private define ------------------------------------------------------------*/
+#define CMD_LEN 10
+
+/* Private typedef -----------------------------------------------------------*/
+typedef struct {
+	uint8_t payload[CMD_LEN + 1];
+	uint8_t len;
+}command_t;
+
+/* Private macro -------------------------------------------------------------*/
+
+
+/* Private variables ---------------------------------------------------------*/
 extern ADC_HandleTypeDef hadc1;
 extern TIM_HandleTypeDef htim4;
+extern UART_HandleTypeDef huart2;
+extern osMessageQueueId_t dataQueueHandle;
+extern osMessageQueueId_t printQueueHandle;
+
+extern osThreadId_t cmd_taskHandle;
+extern osThreadId_t menu_taskHandle;
+extern osThreadId_t print_taskHandle;
+extern osThreadId_t light_taskHandle;
+
+extern osThreadId_t LED_taskHandle;
+
+volatile float lux;
+
+
+/* Private function prototypes -----------------------------------------------*/
+void cmdHandlerTask(void *argument);
+void menuTask(void *argument);
+void printTask(void *argument);
+void lightMeasureTask(void *argument);
+extern void LEDRegulateTask(void *argument);
+
+static int extractCommand(command_t *cmd);
+static void processCommand(command_t *cmd);
 
 /**
-  * @brief  Function implementing the PWM_Task thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-void PWM_For_LED_Task(void *argument)
-{
-	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
-	uint32_t compareValue = 0;
-  /* Infinite loop */
-  for(;;)
-  {
-	  if (compareValue <= 0) {
-		  printf("PWM task - increasing\n");
-
-		  while(compareValue < 65535) {
-			  printf("Val+: %ld\n", compareValue);
-			  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, compareValue);
-			  compareValue += 100;
-			  HAL_Delay(10);
-		  }
-
-	  } else {
-		  printf("PWM task - decreasing\n");
-
-		  while(compareValue > 0) {
-			  printf("Val-: %ld\n", compareValue);
-			  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, compareValue);
-			  compareValue -= 100;
-			  HAL_Delay(10);
-		  }
-	  }
-	    printf("Test execution1\n");
-
-    osDelay(5000);
-  }
-}
-
-/**
-* @brief Function implementing the Light_Task thread.
+* @brief Function implementing the cmd_task thread.
 * @param argument: Not used
 * @retval None
 */
-void GetLightIntensityTask(void *argument)
+void cmdHandlerTask(void *argument)
 {
-	uint16_t refVoltage = 3;
-	uint16_t resolution = 4096;
-	uint32_t rawValue;
-	float voltage;
-	float lux = 0;
+	uint32_t flags;
+	command_t cmd;
 
-  for(;;)
-  {
-	  HAL_ADC_Start(&hadc1);
-	  HAL_ADC_PollForConversion(&hadc1, 20);
-	  rawValue = HAL_ADC_GetValue(&hadc1);
+	while(1) {
+		flags = osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+		if (flags) {
+			extractCommand(&cmd);
+			processCommand(&cmd);
+		}
+	}
+}
 
-	  printf("Raw value: %lu (0-4095)\n", rawValue);
+/**
+ *
+ */
+static int extractCommand(command_t *cmd)
+{
+	uint8_t item;
+	uint32_t count;
+	osStatus_t status;
 
-	  voltage = (float) (rawValue * refVoltage ) / resolution;
-	  printf("Voltage: %.3f V\n", voltage);
+	count = osMessageQueueGetCount(dataQueueHandle);
+	if (!count)
+		return -1;
 
-    /*
-      Convert to Lux
-      10k Om - resistor. Then convert ampere to micro amperes
-      and multiply by 2, as 2 microamps = 1 lux
-     */
-	  lux = (voltage / 10000.0) * 1000000.0 * 2.0; //
-	  printf("Lux: %.1f\n", lux);
+	uint8_t i = 0;
+	cmd->len = 0;
+	do {
+		status = osMessageQueueGet(dataQueueHandle, &item, 0U, 0U);
+		if (status == osOK)
+			cmd->payload[i++] = (uint8_t)item;
 
+	} while (item != '\n' );
 
-	  HAL_ADC_Stop(&hadc1);
-	  osDelay(5000);
-  }
+	cmd->payload[i-1] = '\0'; // replace \n
+	cmd->len = i - 1;
+
+	return 0;
+}
+
+/**
+ *
+ */
+static void processCommand(command_t *cmd)
+{
+	uint8_t option;
+
+	if (cmd->len == 1) {
+		option = cmd->payload[0] - 48; // ASCII to number
+		switch (option) {
+			case 0:
+				osThreadFlagsSet(menu_taskHandle, 1);
+				break;
+			case 1:
+				osThreadFlagsSet(light_taskHandle, 1);
+				break;
+			default:
+				// TODO: print error (command don't exist)
+				break;
+
+		}
+	}
 }
 
 /**
@@ -95,25 +129,67 @@ void GetLightIntensityTask(void *argument)
 */
 void menuTask(void *argument)
 {
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	const char *menuMsg = "Menu\n";
+
+	while (1) {
+
+		// This task is called first by default and then it is waiting for next triggering
+		osMessageQueuePut(printQueueHandle, &menuMsg, 0U, osWaitForever);
+		osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+	}
 }
 
 /**
-* @brief Function implementing the cmd_task thread.
+* @brief Function implementing the Light_Task thread.
 * @param argument: Not used
 * @retval None
 */
-void cmdHandlerTask(void *argument)
+void lightMeasureTask(void *argument)
 {
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	const char *waitMsg = "Measure Light...\n";
+	char *resMsg;
+	char outBuffer[16];
+	resMsg = outBuffer;
+
+	while (1) {
+		osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+
+		osMessageQueuePut(printQueueHandle, &waitMsg, 0U, osWaitForever);
+
+		// trigger measuring
+		triggerLightMeasuring();
+
+		// wait for measurement completed (ADC Callback will notify when finished with flags = 2)
+		osThreadFlagsWait(2, osFlagsWaitAny, osWaitForever);
+		lux = getLightMeasuredValue();
+
+		sprintf(outBuffer, "Lux: %.1f\n", lux);
+
+		// Enqueue measured value for further printing
+		osMessageQueuePut(printQueueHandle, &resMsg, 0U, osWaitForever);
+
+		// notify ledRegulate for configuring LED brightness using PWM
+		osThreadFlagsSet(LED_taskHandle, 1);
+	}
+}
+
+/**
+  * @brief  Function implementing the PWM_Task thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+void LEDRegulateTask(void *argument)
+{
+	uint16_t compareValue;
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+	while (1) {
+		osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+
+		// todo: define those constants
+		compareValue = (lux * 65535) / 600;
+
+		__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, compareValue);
+	}
 }
 
 /**
@@ -123,9 +199,9 @@ void cmdHandlerTask(void *argument)
 */
 void printTask(void *argument)
 {
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	uint32_t *msg;
+	while (1) {
+		osMessageQueueGet(printQueueHandle, &msg, 0U, osWaitForever);
+		HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen((char*)msg), HAL_MAX_DELAY);
+	}
 }
