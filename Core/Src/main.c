@@ -83,6 +83,20 @@ const osThreadAttr_t print_task_attributes = {
   .stack_size = 250 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for temp_task */
+osThreadId_t temp_taskHandle;
+const osThreadAttr_t temp_task_attributes = {
+  .name = "temp_task",
+  .stack_size = 250 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for hum_task */
+osThreadId_t hum_taskHandle;
+const osThreadAttr_t hum_task_attributes = {
+  .name = "hum_task",
+  .stack_size = 250 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for dataQueue */
 osMessageQueueId_t dataQueueHandle;
 const osMessageQueueAttr_t dataQueue_attributes = {
@@ -109,6 +123,8 @@ extern void lightMeasureTask(void *argument);
 extern void menuTask(void *argument);
 extern void cmdHandlerTask(void *argument);
 extern void printTask(void *argument);
+extern void temperatureMeasureTask(void *argument);
+extern void humidityMeasureTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -198,6 +214,12 @@ int main(void)
 
   /* creation of print_task */
   print_taskHandle = osThreadNew(printTask, NULL, &print_task_attributes);
+
+  /* creation of temp_task */
+  temp_taskHandle = osThreadNew(temperatureMeasureTask, NULL, &temp_task_attributes);
+
+  /* creation of hum_task */
+  hum_taskHandle = osThreadNew(humidityMeasureTask, NULL, &hum_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */

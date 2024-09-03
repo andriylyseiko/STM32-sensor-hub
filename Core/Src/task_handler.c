@@ -174,6 +174,26 @@ void lightMeasureTask(void *argument)
 }
 
 /**
+ *
+ */
+void temperatureMeasureTask(void *argument)
+{
+	while (1) {
+
+	}
+}
+
+/**
+ *
+ */
+void humidityMeasureTask(void *argument)
+{
+	while (1) {
+
+	}
+}
+
+/**
   * @brief  Function implementing the PWM_Task thread.
   * @param  argument: Not used
   * @retval None
