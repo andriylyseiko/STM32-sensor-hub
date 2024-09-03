@@ -220,10 +220,10 @@ int main(void)
   print_taskHandle = osThreadNew(printTask, NULL, &print_task_attributes);
 
   /* creation of temp_task */
-  temp_taskHandle = osThreadNew(temperatureMeasureTask, NULL, &temp_task_attributes);
+//  temp_taskHandle = osThreadNew(temperatureMeasureTask, NULL, &temp_task_attributes);
 
   /* creation of hum_task */
-  hum_taskHandle = osThreadNew(humidityMeasureTask, NULL, &hum_task_attributes);
+//  hum_taskHandle = osThreadNew(humidityMeasureTask, NULL, &hum_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -532,6 +532,27 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 		// notify lightMeasurementTask that ADC conversion was completed successfully
 		osThreadFlagsSet(light_taskHandle, 2);
 	}
+}
+
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if (hi2c->Instance == I2C1) {
+		osThreadFlagsSet(temp_taskHandle, 2);
+	}
+}
+
+
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if (hi2c->Instance == I2C1) {
+		osThreadFlagsSet(temp_taskHandle, 4);
+	}
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+	// TODO: send notification with error flag (6, for example) to
+	// the task that is currently processing (it can be determined by app state var)
 }
 
 /* USER CODE END 4 */

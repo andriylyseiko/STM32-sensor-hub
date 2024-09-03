@@ -28,17 +28,24 @@ typedef struct {
 extern ADC_HandleTypeDef hadc1;
 extern TIM_HandleTypeDef htim4;
 extern UART_HandleTypeDef huart2;
+
+// queues handlers
 extern osMessageQueueId_t dataQueueHandle;
 extern osMessageQueueId_t printQueueHandle;
 
+// tasks handlers
 extern osThreadId_t cmd_taskHandle;
 extern osThreadId_t menu_taskHandle;
 extern osThreadId_t print_taskHandle;
+
 extern osThreadId_t light_taskHandle;
+extern osThreadId_t temp_taskHandle;
+extern osThreadId_t hum_taskHandle;
 
 extern osThreadId_t LED_taskHandle;
 
 volatile float lux;
+volatile float temp;
 
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,6 +121,12 @@ static void processCommand(command_t *cmd)
 			case 1:
 				osThreadFlagsSet(light_taskHandle, 1);
 				break;
+			case 2:
+				osThreadFlagsSet(temp_taskHandle, 1);
+				break;
+			case 3:
+				osThreadFlagsSet(hum_taskHandle, 1);
+				break;
 			default:
 				// TODO: print error (command don't exist)
 				break;
@@ -178,8 +191,41 @@ void lightMeasureTask(void *argument)
  */
 void temperatureMeasureTask(void *argument)
 {
-	while (1) {
+	uint32_t flags;
+	const char *waitMsg = "Measure Temp...\n";
+	char *resMsg;
+	char outBuffer[16];
+	resMsg = outBuffer;
 
+	while (1) {
+		osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+
+		osMessageQueuePut(printQueueHandle, &waitMsg, 0U, osWaitForever);
+
+		triggerTempMeasuring();
+
+		// wait for measurement start result
+		flags = osThreadFlagsWait(2 | 6, osFlagsWaitAny, osWaitForever);
+		if (flags == 6) {
+			// error occur, TODO: print error message
+			continue;
+		}
+
+		startReceivingTempMeasurement();
+
+		// wait for receiving completed (I2C Callback will notify when finished with flags = 4)
+		flags = osThreadFlagsWait(4, osFlagsWaitAny, osWaitForever);
+		if (flags == 6) {
+			// error occur, TODO: print error message
+			continue;
+		}
+
+		temp = getTempMeasuredValue();
+
+		sprintf(outBuffer, "Temp: %.1f\n", temp);
+
+		// Enqueue measured value for further printing
+		osMessageQueuePut(printQueueHandle, &resMsg, 0U, osWaitForever);
 	}
 }
 
