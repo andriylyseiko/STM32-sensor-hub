@@ -39,6 +39,7 @@ extern I2C_HandleTypeDef hi2c1;
 
 // HTU21 Sensor
 uint8_t sHTU21_RX_Buffer[S_HTU21D_RX_BUFFER_SIZE];
+uint8_t pDataTX = S_HTU21D_TEMP_CMD_NO_HOLD;
 
 /* Private function prototypes -----------------------------------------------*/
 
@@ -70,8 +71,7 @@ float getLightMeasuredValue()
 /* I2C Sensor (HTU21) - Temperature (Celsius) -----------------------------------*/
 void triggerTempMeasuring()
 {
-	uint8_t pData = S_HTU21D_TEMP_CMD_NO_HOLD;
-	HAL_I2C_Master_Transmit_IT(&hi2c1, S_HTU21D_ADDR, &pData, 1);
+	HAL_I2C_Master_Transmit_IT(&hi2c1, S_HTU21D_ADDR, &pDataTX, sizeof(pDataTX));
 }
 
 /**

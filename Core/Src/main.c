@@ -220,7 +220,7 @@ int main(void)
   print_taskHandle = osThreadNew(printTask, NULL, &print_task_attributes);
 
   /* creation of temp_task */
-//  temp_taskHandle = osThreadNew(temperatureMeasureTask, NULL, &temp_task_attributes);
+  temp_taskHandle = osThreadNew(temperatureMeasureTask, NULL, &temp_task_attributes);
 
   /* creation of hum_task */
 //  hum_taskHandle = osThreadNew(humidityMeasureTask, NULL, &hum_task_attributes);
@@ -551,8 +551,11 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
 
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
-	// TODO: send notification with error flag (6, for example) to
-	// the task that is currently processing (it can be determined by app state var)
+	if (hi2c->Instance == I2C1) {
+
+		// TODO: Get from global app state where send this notification
+//		osThreadFlagsSet(temp_taskHandle, 6);
+	}
 }
 
 /* USER CODE END 4 */

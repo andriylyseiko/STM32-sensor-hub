@@ -211,10 +211,13 @@ void temperatureMeasureTask(void *argument)
 			continue;
 		}
 
+		// wait for sensor measuring
+		osDelay(pdMS_TO_TICKS(50));
+
 		startReceivingTempMeasurement();
 
 		// wait for receiving completed (I2C Callback will notify when finished with flags = 4)
-		flags = osThreadFlagsWait(4, osFlagsWaitAny, osWaitForever);
+		flags = osThreadFlagsWait(4 | 6, osFlagsWaitAny, osWaitForever);
 		if (flags == 6) {
 			// error occur, TODO: print error message
 			continue;
