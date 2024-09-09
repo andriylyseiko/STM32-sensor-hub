@@ -101,6 +101,13 @@ const osThreadAttr_t hum_task_attributes = {
   .stack_size = 250 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for pressure_task */
+osThreadId_t pressure_taskHandle;
+const osThreadAttr_t pressure_task_attributes = {
+  .name = "pressure_task",
+  .stack_size = 250 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for dataQueue */
 osMessageQueueId_t dataQueueHandle;
 const osMessageQueueAttr_t dataQueue_attributes = {
@@ -131,8 +138,10 @@ extern void cmdHandlerTask(void *argument);
 extern void printTask(void *argument);
 extern void temperatureMeasureTask(void *argument);
 extern void humidityMeasureTask(void *argument);
+extern void pressureMeasureTask(void *argument);
 
 /* USER CODE BEGIN PFP */
+extern void pressureSensorInit();
 
 /* USER CODE END PFP */
 
@@ -176,6 +185,8 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+
+  pressureSensorInit();
 
   HAL_UART_Receive_IT(&huart2, (uint8_t*)&user_data, 1);
 
@@ -228,6 +239,9 @@ int main(void)
 
   /* creation of hum_task */
 //  hum_taskHandle = osThreadNew(humidityMeasureTask, NULL, &hum_task_attributes);
+
+  /* creation of pressure_task */
+  pressure_taskHandle = osThreadNew(pressureMeasureTask, NULL, &pressure_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -616,7 +630,7 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef * hspi)
 {
 	if (hspi->Instance == SPI1)
 	{
-		// TODO: implement callback
+		osThreadFlagsSet(pressure_taskHandle, 2);
 	}
 }
 

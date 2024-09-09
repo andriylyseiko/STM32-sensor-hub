@@ -41,11 +41,13 @@ extern osThreadId_t print_taskHandle;
 extern osThreadId_t light_taskHandle;
 extern osThreadId_t temp_taskHandle;
 extern osThreadId_t hum_taskHandle;
+extern osThreadId_t pressure_taskHandle;
 
 extern osThreadId_t LED_taskHandle;
 
 volatile float lux;
 volatile float temp;
+volatile int32_t pressure;
 
 
 /* Private function prototypes -----------------------------------------------*/
@@ -126,6 +128,9 @@ static void processCommand(command_t *cmd)
 				break;
 			case 3:
 				osThreadFlagsSet(hum_taskHandle, 1);
+				break;
+			case 4:
+				osThreadFlagsSet(pressure_taskHandle, 1);
 				break;
 			default:
 				// TODO: print error (command don't exist)
@@ -239,6 +244,38 @@ void humidityMeasureTask(void *argument)
 {
 	while (1) {
 
+	}
+}
+
+void pressureMeasureTask(void *argument)
+{
+	uint32_t flags;
+	const char *waitMsg = "Measure Pressure...\n";
+	char *resMsg;
+	char outBuffer[16];
+	resMsg = outBuffer;
+
+	while (1) {
+		osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+
+		osMessageQueuePut(printQueueHandle, &waitMsg, 0U, osWaitForever);
+
+		triggerPressureMeasurements();
+
+		// wait for measurements finish
+		flags = osThreadFlagsWait(2 | 6, osFlagsWaitAny, osWaitForever);
+		if (flags == 6) {
+			// error occur, TODO: print error message
+			continue;
+		}
+
+
+		pressure = processPressureMeasurements();
+
+		sprintf(outBuffer, "Press.: %ld\n", pressure);
+
+		// Enqueue measured value for further printing
+		osMessageQueuePut(printQueueHandle, &resMsg, 0U, osWaitForever);
 	}
 }
 
