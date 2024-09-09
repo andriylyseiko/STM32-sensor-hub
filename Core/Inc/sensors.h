@@ -17,4 +17,9 @@ void triggerTempMeasuring();
 void startReceivingTempMeasurement();
 float getTempMeasuredValue();
 
+/* SPI Sensor (BMP280) - Pressure/Temperature -----------------------------------*/
+void pressureSensorInit();
+void triggerPressureMeasurements();
+int32_t processPressureMeasurements();
+
 #endif /* INC_SENSORS_H_ */
