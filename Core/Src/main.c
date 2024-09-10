@@ -119,7 +119,18 @@ const osMessageQueueAttr_t printQueue_attributes = {
   .name = "printQueue"
 };
 /* USER CODE BEGIN PV */
-volatile uint8_t user_data;
+volatile uint8_t user_data = 0;
+
+/* Keypad handling */
+uint8_t keypad[4][4] = {
+        {'1', '2', '3', 'A'},
+        {'4', '5', '6', 'B'},
+        {'7', '8', '9', 'C'},
+        {'*', '0', '#', 'D'}
+};
+uint32_t previousMillis = 0;
+uint32_t currentMillis = 0;
+
 
 /* USER CODE END PV */
 
@@ -142,6 +153,7 @@ extern void pressureMeasureTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 extern void pressureSensorInit();
+static void process_user_input(volatile uint8_t *inputCommand);
 
 /* USER CODE END PFP */
 
@@ -543,10 +555,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_SET);
 
   /*Configure GPIO pin : PA4 */
   GPIO_InitStruct.Pin = GPIO_PIN_4;
@@ -555,12 +571,37 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PE10 PE11 PE12 PE13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PD0 PD1 PD2 PD3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 6, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	process_user_input(&user_data);
+
+	/* Enable UART data byte reception again in IT mode */
+	HAL_UART_Receive_IT(&huart2, (void*)&user_data, 1);
+}
+
+static void process_user_input(volatile uint8_t *inputCommand)
 {
 	uint8_t to_remove;
 
@@ -569,16 +610,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		/*Queue is not full */
 
 		/* Enqueue data byte */
-		osMessageQueuePut(dataQueueHandle, (void*)&user_data, 0U, 0U);
+		osMessageQueuePut(dataQueueHandle, (void*)inputCommand, 0U, 0U);
 
 	} else {
 		/*Queue is full */
 
-		if(user_data == '\n') {
+		if(*inputCommand == '\n') {
 
 			/* make sure that last data byte of the queue is '\n' */
 			osMessageQueueGet(dataQueueHandle, (void*)&to_remove, 0U, 0U);
-			osMessageQueuePut(dataQueueHandle, (void*)&user_data, 0U, 0U);
+			osMessageQueuePut(dataQueueHandle, (void*)inputCommand, 0U, 0U);
 		}
 	}
 
@@ -587,10 +628,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if (user_data == '\n') {
 		osThreadFlagsSet(cmd_taskHandle, 1);
 	}
-
-	/* Enable UART data byte reception again in IT mode */
-	HAL_UART_Receive_IT(&huart2, (void*)&user_data, 1);
-
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
@@ -641,8 +678,35 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
 		// TODO: implement error handler
 	}
 }
-
 /* 	SPI Callback End  */
+
+/* Keypad handling */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	uint8_t col;
+	uint8_t key = 0xFF;
+	uint8_t newline = '\n';
+	currentMillis = HAL_GetTick();
+	if (currentMillis - previousMillis > 10 && GPIO_Pin >= GPIO_PIN_10 && GPIO_Pin <= GPIO_PIN_13)
+	{
+		for (int row = 0; row < 4; row++)
+		{
+			HAL_GPIO_WritePin(GPIOD, (GPIO_PIN_0 << row), GPIO_PIN_RESET);
+	        if (HAL_GPIO_ReadPin(GPIOE, GPIO_Pin) == GPIO_PIN_RESET)
+	        {
+	        	col = (GPIO_Pin == GPIO_PIN_10) ? 0 : (GPIO_Pin == GPIO_PIN_11) ? 1 : (GPIO_Pin == GPIO_PIN_12) ? 2 : 3;
+	        	key = keypad[row][col];
+	        }
+			HAL_GPIO_WritePin(GPIOD, (GPIO_PIN_0 << row), GPIO_PIN_SET);
+		}
+		if (key != 0xFF)
+		{
+			process_user_input(&key);
+			process_user_input(&newline);
+		}
+		previousMillis = currentMillis;
+	}
+}
 
 /* USER CODE END 4 */
 
