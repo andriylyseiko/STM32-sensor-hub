@@ -118,6 +118,11 @@ osMessageQueueId_t printQueueHandle;
 const osMessageQueueAttr_t printQueue_attributes = {
   .name = "printQueue"
 };
+/* Definitions for xI2CMutex */
+osMutexId_t xI2CMutexHandle;
+const osMutexAttr_t xI2CMutex_attributes = {
+  .name = "xI2CMutex"
+};
 /* USER CODE BEGIN PV */
 volatile uint8_t user_data = 0;
 
@@ -198,14 +203,22 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Load Pressure Sensor calibration params, set configs */
   pressureSensorInit();
 
+  /* Enable UART receiving for input commands */
   HAL_UART_Receive_IT(&huart2, (uint8_t*)&user_data, 1);
+
+  /* Init LCD display for output messages */
+  I2C_LCD_Init(MyI2C_LCD);
 
   /* USER CODE END 2 */
 
   /* Init scheduler */
   osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of xI2CMutex */
+  xI2CMutexHandle = osMutexNew(&xI2CMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -605,15 +618,10 @@ static void process_user_input(volatile uint8_t *inputCommand)
 {
 	uint8_t to_remove;
 
-
 	if(osMessageQueueGetSpace(dataQueueHandle) != 0) {
-		/*Queue is not full */
-
-		/* Enqueue data byte */
+		/*Queue is not full, Enqueue data byte */
 		osMessageQueuePut(dataQueueHandle, (void*)inputCommand, 0U, 0U);
-
 	} else {
-		/*Queue is full */
 
 		if(*inputCommand == '\n') {
 
@@ -624,8 +632,7 @@ static void process_user_input(volatile uint8_t *inputCommand)
 	}
 
 	/* send notification to command handling task if user_data = '\n' */
-
-	if (user_data == '\n') {
+	if (*inputCommand == '\n') {
 		osThreadFlagsSet(cmd_taskHandle, 1);
 	}
 }
@@ -687,7 +694,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	uint8_t key = 0xFF;
 	uint8_t newline = '\n';
 	currentMillis = HAL_GetTick();
-	if (currentMillis - previousMillis > 10 && GPIO_Pin >= GPIO_PIN_10 && GPIO_Pin <= GPIO_PIN_13)
+	if (currentMillis - previousMillis > 50 && GPIO_Pin >= GPIO_PIN_10 && GPIO_Pin <= GPIO_PIN_13)
 	{
 		for (int row = 0; row < 4; row++)
 		{

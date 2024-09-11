@@ -50,6 +50,9 @@ extern ADC_HandleTypeDef hadc1;
 extern I2C_HandleTypeDef hi2c1;
 extern SPI_HandleTypeDef hspi1;
 
+// Mutexes
+extern osMutexId_t xI2CMutexHandle;
+
 // HTU21 Sensor
 uint8_t sHTU21_RX_Buffer[S_HTU21D_RX_BUFFER_SIZE];
 uint8_t pDataTX = S_HTU21D_TEMP_CMD_NO_HOLD;
@@ -93,7 +96,12 @@ float getLightMeasuredValue()
 /* I2C Sensor (HTU21) - Temperature (Celsius) -----------------------------------*/
 void triggerTempMeasuring()
 {
-	HAL_I2C_Master_Transmit_IT(&hi2c1, S_HTU21D_ADDR, &pDataTX, sizeof(pDataTX));
+	if (osMutexAcquire(xI2CMutexHandle, osWaitForever) == osOK)
+	{
+		HAL_I2C_Master_Transmit_IT(&hi2c1, S_HTU21D_ADDR, &pDataTX, sizeof(pDataTX));
+
+		osMutexRelease(xI2CMutexHandle);
+	}
 }
 
 /**
@@ -101,7 +109,12 @@ void triggerTempMeasuring()
  */
 void startReceivingTempMeasurement()
 {
-	HAL_I2C_Master_Receive_IT(&hi2c1, S_HTU21D_ADDR, sHTU21_RX_Buffer, S_HTU21D_RX_BUFFER_SIZE);
+	if (osMutexAcquire(xI2CMutexHandle, osWaitForever) == osOK)
+	{
+		HAL_I2C_Master_Receive_IT(&hi2c1, S_HTU21D_ADDR, sHTU21_RX_Buffer, S_HTU21D_RX_BUFFER_SIZE);
+
+		osMutexRelease(xI2CMutexHandle);
+	}
 }
 
 /**
